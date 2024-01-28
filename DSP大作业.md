@@ -1,4 +1,6 @@
-# DSP大作业
+# DSP大作业报告
+
+马嘉成，2021011966，无18
 
 ## Task1
 
@@ -42,11 +44,11 @@ MATLAB的STFT默认使用Hanning窗，仅调整窗长，发现对本题参数与
 
 ### 直接用STFT
 
-我意识到STFT的时频分辨率不够，而且如果想直接利用STFT得到结果需要在二维平面上进行搜索，实现起来较为复杂。如果SNR比较高还容易些，如果SNR较低则会很容易误判或出现较大误差。
+我意识到STFT的时频分辨率不够，而且如果想直接利用STFT得到结果需要在二维平面上对线段进行搜索，使用Radon变换也同样需要搜索二维平面内的极值点，实现起来较为复杂。如果SNR比较高还容易些，如果SNR较低则会很容易误判或出现较大误差。
 
 ### Radon Wigner Transform
 
-经过文献调研，一开始我找到了RWT(Radon Wigner Transform)方法。这种方法利用了LFM信号的WVD为冲激线谱，即
+经过**文献调研[1]**，一开始我找到了**RWT(Radon Wigner Transform)**方法。这种方法利用了LFM信号的WVD为冲激线谱，即
 $$
 x(t)=e^{j(\omega_0 t+0.5mt^2)}\\
 W_x(t,\omega)=\int_{-\infty}^{\infty}x(t+\tau/2)x^*(t-\tau/2)e^{-j\omega\tau}d\tau=\delta(\omega-(\omega_0+mt))
@@ -55,7 +57,7 @@ $$
 
 ### Radon Ambiguity Transform
 
-后来我查到了一种使用RAT(Radon Ambiguity Transform)的方法。这种方法利用了LFM信号的模棱函数(Ambiguity Function)为过原点线段的特点，将原来WVD的二维搜索问题转化为了一维搜索问题。只需关注Radon变换后过原点直线的斜率就好，极大简化了计算。(下图为某次实验中计算出的Ambiguity Function，可以看出有两个信号，根据其斜率可以确定原信号调频率$f_m$)
+后来我查到了一种使用**RAT(Radon Ambiguity Transform)[2]**的方法。这种方法利用了LFM信号的模棱函数(Ambiguity Function)为过原点线段的特点，将原来WVD的二维搜索问题转化为了一维搜索问题。只需关注Radon变换后过原点直线的斜率就好，极大简化了计算。(下图为某次实验中计算出的Ambiguity Function，可以看出有两个信号，根据其斜率可以确定原信号调频率$f_m$)
 
 <img src=".\task3_2\untitled3.png" alt="untitled3" style="zoom:50%;" />
 
@@ -87,7 +89,7 @@ $$
 
 但这样也带来了问题，就是**信号的起止时间和起止频率无法得知**，仅能提取调频率$f_m$的大小。
 
-虽然单用RAT无法得到要求，但可以用RAT得到的调频率在STFT的结果中简化搜索，使得基于STFT的直线搜索方法更加鲁棒。下面我是这样做的。
+虽然单用RAT无法达到要求，但可以用RAT得到的调频率在STFT的结果中简化搜索，使得基于STFT的直线搜索方法更加鲁棒。下面我是这样做的。
 
 ```matlab
 k = fm./fs./(f(2)-f(1));
@@ -95,7 +97,7 @@ k = fm./fs./(f(2)-f(1));
 
 我通过这行代码计算出信号在STFT图像中对应的线段的预期斜率。有了这个，就可以**使用一条斜率固定的直线从上到下将STFT图像扫描一遍**，假设信号的调频率可以区分，则可以根据调频率唯一确定我们想要寻找的那条线段，从而进一步找到信号的起始时间和持续时间。
 
-具体地，我先将STFT结果二值化，这样可以在一定程度上滤除掉一部分噪声的影响，得到图像如下。
+具体地，我先将STFT结果在某阈值下二值化，这样可以在一定程度上滤除掉一部分噪声的影响，得到图像如下。
 
 <img src=".\task3_2\untitled5.png" alt="untitled5" style="zoom:50%;" />
 
@@ -103,11 +105,11 @@ k = fm./fs./(f(2)-f(1));
 
 <img src=".\task3_2\untitled6.png" alt="untitled6" style="zoom:50%;" />
 
-但还有一个问题，那就是这样扫描会将没滤掉的噪声也计算进去。于是我对扫到的点的x坐标按顺序组成的向量做差分，这样就求出了每两个点之间的间隔大小。如果相邻两个扫到的点x坐标差别较大，则认为这两个点中至少有一个是噪声带来的。根据两点在整个向量中的位置可以决定该删掉哪一边。这样最终得到的结果就会和真实值比较接近了。现在可以计算出$t_0,T,f_m(调频率),B$，可以直接根据线段左端点得到起始频率$f_0$，这样也很容易实现。**这也是我最终采用的方法。**
+但还有一个问题，那就是这样扫描会将没滤掉的噪声也计算进去。于是我对扫到的点的x坐标按顺序组成的向量做**差分**，这样就求出了每两个点之间的间隔大小。如果相邻两个扫到的点x坐标差别较大，则认为这两个点中至少有一个是噪声带来的。根据两点在整个向量中的位置可以决定该删掉哪一边。这样最终得到的结果就会和真实值比较接近了。现在可以计算出$t_0,T,f_m(调频率),B$，可以直接根据线段左端点得到起始频率$f_0$，这样也很容易实现。**这也是我最终采用的方法。**
 
-### RAT-FrFT
+### RAT-FrFT[3]
 
-我在调研时还发现了一种比较有意思的方法：分数阶傅里叶变换(FrFT)。
+我在调研时还发现了一种比较有意思的方法：**分数阶傅里叶变换(FrFT)[4],[5]**。
 
 通过RAT可以确定FrFT的阶数a
 $$
@@ -123,9 +125,26 @@ f_0=f_h-\frac{f_mT}{2}
 $$
 即可计算出$f_0$。但在实际使用中我发现这样计算误差较大，所以最终没有采用这种方法。因为FrFT的结果受点数和阶数影响较大，如果求的阶数不够准确，或者点数不够，则频域可能不是一个理想的冲激函数。
 
+使用FrFT方法的代码如下，在代码文件中被注释掉了
+
+```matlab
+% for i = 1:num_signal %对每个chirp信号求中心频率
+%     a(i) = 2/pi*acot(-fm(i)/(fs^2));
+%     y = myfrft(x',a(i))';
+%     u=linspace(-fs/2,fs/2-1,length(y));
+% %     % % figure;
+% %     % % plot(u,abs(y));
+%     u_index = y>(max(y)*0.8);
+%     u_mean = mean(u(u_index));
+%     fh(i)=abs(u_mean*csc(a(i)*pi/2));%估计的中心频率
+% end
+```
+
+对应结果保存在task3_x/error_xdB_old.mat中。
+
 ## Task3.1结果
 
-总时长26e(-6)s
+总时长$26\mu s$
 
 采用一固定信号，真值：
 $$
@@ -146,7 +165,9 @@ $$
 
 ## Task3.2结果
 
-已知两个LFM信号，真值为
+总时长$26\mu s$
+
+已知有两个LFM信号，真值(对程序未知)为
 $$
 f_0 = [2e6,9e6]\\
 B = [1.8e7,6e6]\\
@@ -162,3 +183,17 @@ $$
 <img src=".\task3_2\f0_RMSE.png" alt="f0_RMSE" style="zoom:50%;" />
 
 <img src=".\task3_2\B_RMSE.png" alt="B_RMSE" style="zoom:50%;" />
+
+## 参考文献
+
+[1] ***Mixed LFM Signal Estimation Based on RadonWigner Transform and Matching Pursuit***, *Dong Wang and Hong Tang*
+
+[2] ***Linear Frequency-Modulated Signal Detection Using Radon-Ambiguity Transform***, *Minsheng Wang, Andrew K. Chan, Senior Member, IEEE, and Charles K. Chui, Fellow, IEEE*
+
+[3] ***基于Radon-Ambiguity变换和分数阶傅里叶变换的Chirp信号检测及多参数估计***, *赵兴浩, 陶然, 周思永, 王越*
+
+[4] ***基于分数阶傅里叶变换的chirp信号检测与参数估计(原理附代码)***, *https://blog.csdn.net/weixin_42845306/article/details/120281437*
+
+[5] ***Computation of the fractional Fourier transform***, *Adhemar Bultheel and Héctor E. Martínez Sulbaran*
+
+其余参考了Matlab说明文档的地方不一一列出
